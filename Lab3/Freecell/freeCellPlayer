@@ -1,0 +1,267 @@
+module freeCellPlayer(win, source, destination, clk);
+
+input clk;
+input [3:0] source, destination;
+output win;
+
+reg w_win;
+reg [5:0] cells [7:0]; //free cells
+reg [5:0] tableau [31:0][7:0]; //tableau
+reg [5:0] s_card, d_card, temp; //source card, temp card, and destination card {[5:4] = suit, [3:0] value}, [5] = 0 => suit = black
+reg [8:0] pointer [7:0]; //points to row of specific column
+reg [7:0] fcv; //1 corresponds to empty cell
+reg [7:0] tbv; //1 corresponds to empty column
+integer i, j;
+
+initial begin
+        w_win = 0;
+        //col_1
+        tableau[0][0] = 6'b00_0011; //S4
+        tableau[1][0] = 6'b11_1010; //DJ
+        tableau[2][0] = 6'b11_1001; //D10
+        tableau[3][0] = 6'b11_0101; //D6
+        tableau[4][0] = 6'b00_0010; //S3
+        tableau[5][0] = 6'b11_0000; //DA
+        tableau[6][0] = 6'b10_0000; //HA
+        //col_2
+        tableau[0][1] = 6'b00_0100; //S5
+        tableau[1][1] = 6'b00_1001; //S10
+        tableau[2][1] = 6'b10_0111; //H8
+        tableau[3][1] = 6'b01_0011; //C4
+        tableau[4][1] = 6'b10_0101; //H6
+        tableau[5][1] = 6'b10_1100; //HK
+        tableau[6][1] = 6'b10_0001; //H2
+        //col_3
+        tableau[0][2] = 6'b00_1010; //SJ
+        tableau[1][2] = 6'b01_0110; //C7
+        tableau[2][2] = 6'b01_1000; //C9
+        tableau[3][2] = 6'b01_0101; //C6
+        tableau[4][2] = 6'b01_0001; //C2
+        tableau[5][2] = 6'b00_1100; //SK
+        tableau[6][2] = 6'b01_0000; //CA
+        //col_4
+        tableau[0][3] = 6'b10_0011; //H4
+        tableau[1][3] = 6'b00_0000; //SA
+        tableau[2][3] = 6'b01_1011; //CQ
+        tableau[3][3] = 6'b01_0100; //C5
+        tableau[4][3] = 6'b00_0110; //S7
+        tableau[5][3] = 6'b10_1000; //H9
+        tableau[6][3] = 6'b00_0111; //S8
+        //col_5
+        tableau[0][4] = 6'b11_1011; //DQ
+        tableau[1][4] = 6'b10_1010; //HJ
+        tableau[2][4] = 6'b00_1011; //SQ
+        tableau[3][4] = 6'b00_0101; //S6
+        tableau[4][4] = 6'b11_0001; //D2
+        tableau[5][4] = 6'b00_1000; //S9
+        //col_6
+        tableau[0][5] = 6'b11_0100; //D5
+        tableau[1][5] = 6'b11_1100; //DK
+        tableau[2][5] = 6'b01_0010; //C3
+        tableau[3][5] = 6'b11_1000; //D9
+        tableau[4][5] = 6'b10_0010; //H3
+        tableau[5][5] = 6'b00_0001; //S2
+        //col_7
+        tableau[0][6] = 6'b10_0100; //H5
+        tableau[1][6] = 6'b11_0010; //D3
+        tableau[2][6] = 6'b10_1011; //HQ
+        tableau[3][6] = 6'b11_0110; //D7
+        tableau[4][6] = 6'b01_1100; //CK
+        tableau[5][6] = 6'b01_1001; //C10
+        //col_8
+        tableau[0][7] = 6'b01_1010; //CJ
+        tableau[1][7] = 6'b11_0011; //D4
+        tableau[2][7] = 6'b10_1001; //H10
+        tableau[3][7] = 6'b01_0111; //C8
+        tableau[4][7] = 6'b10_0110; //H7
+        tableau[5][7] = 6'b11_0111; //D8
+        //cell initial
+        cells[0] = 6'bxxxxxx;
+        cells[1] = 6'bxxxxxx;
+        cells[2] = 6'bxxxxxx;
+        cells[3] = 6'bxxxxxx;
+        cells[4] = 6'bxxxxxx;
+        cells[5] = 6'bxxxxxx;
+        cells[6] = 6'bxxxxxx;
+        cells[7] = 6'bxxxxxx;
+        //pointer initialization
+        pointer[0] = 9'b000_000_110;
+        pointer[1] = 9'b000_000_110;
+        pointer[2] = 9'b000_000_110;
+        pointer[3] = 9'b000_000_110;
+        pointer[4] = 9'b000_000_101;
+        pointer[5] = 9'b000_000_101;
+        pointer[6] = 9'b000_000_101;
+        pointer[7] = 9'b000_000_101;
+        //free cell valid initialization
+        fcv = 8'b1111_1111;
+        //tableau empty valid initialization
+        tbv = 8'b0000_0000;
+end
+
+
+
+always @ (posedge clk) begin
+        $display($time, ",  source = %b, destination = %b", source,destination);
+        if(!w_win)begin
+                case(source[3]) //source
+                        1'b0: begin //tableau
+                                s_card = tableau[pointer[source[2:0]]][source[2:0]]; //source card on tableau
+                                case(destination[3])
+                                        1'b0:begin //tableau to tableau
+                                                d_card = tableau[pointer[destination[2:0]]][destination[2:0]];   //destination card on tableau
+                                                if(((s_card[5] ^ d_card[5] == 1) && (s_card[3:0] == d_card[3:0]-1)) || tbv[destination[2:0]] == 1)begin
+                                                        pointer[destination[2:0]] = pointer[destination[2:0]] + 1; //increases destination pointer
+                                                        tableau[pointer[destination[2:0]]][destination[2:0]] = s_card; //puts s_card at next tableau column spot
+                                                        tableau[pointer[source[2:0]]][source[2:0]] = 6'bx;
+                                                        pointer[source[2:0]] = pointer[source[2:0]] - 1; //decreases source pointer
+                                                end else begin
+							                        $display("**ILLEGAL MOVE**");
+						                        end
+                                        end
+                                        1'b1:begin
+                                                case(destination[2])
+                                                        1'b0:begin //tableau to freecell
+                                                                if(fcv[destination[1:0]] == 1'b1)begin
+                                                                        cells[destination[1:0]] = s_card;
+                                                                        tableau[pointer[source[2:0]]][source[2:0]] = 6'bx; //remove source card from tableau
+                                                                        pointer[source[2:0]] = pointer[source[2:0]] - 1; //decreases source pointer
+                                                                        fcv[destination[1:0]] = 1'b0;
+                                                                end else begin
+									                                $display("**ILLEGAL MOVE**");
+								                                end
+                                                        end
+                                                        1'b1:begin //tableau to homecell
+                                                                j = 0;
+                                                                for(i=4; i <8; i=i+1)begin
+                                                                        if(s_card[5:4] == cells[i][5:4])begin
+                                                                                if(s_card[3:0] == cells[i][3:0] + 1)begin
+                                                                                        cells[i] = s_card;
+                                                                                        tableau[pointer[source[2:0]]][source[2:0]] = 6'bx; //remove source card from tableau
+                                                                                        pointer[source[2:0]] = pointer[source[2:0]] - 1; //decreases source pointer
+                                                                                end
+                                                                        end else begin
+                                                                                j = j + 1;
+                                                                        end
+                                                                end
+                                        
+                                                                if((j != 0) && (s_card[3:0] == 0))begin
+                                                                        for(i=4; i <8; i=i+1)begin
+                                                                                if(fcv[i] == 1)begin
+                                                                                        cells[i] = s_card;
+                                                                                        tableau[pointer[source[2:0]]][source[2:0]] = 6'bx; //remove source card from tableau
+                                                                                        pointer[source[2:0]] = pointer[source[2:0]] - 1; //decreases source pointer
+                                                                                        fcv[i] = 1'b0;
+                                                                                        i = 10;
+                                                                                end
+                                                                        end
+                                                                end
+								                                if( j == 4 && i == 8)begin
+								                                	$display("**ILLEGAL MOVE**");
+								                                end
+                                                        end
+                                                endcase
+                                        end
+                                endcase
+
+                        end
+                        1'b1: begin //freecells
+                                case(source[2])
+                                        1'b0:begin
+                                                s_card = cells[source[1:0]];
+                                                case(destination[3])
+                                                        1'b0:begin //freecell to tableau
+                                                                d_card = tableau[pointer[destination[2:0]]][destination[2:0]];   //destination card on tableau
+                                                                if(((s_card[5] ^ d_card[5] == 1) && (s_card[3:0] == d_card[3:0]-1)) || tbv[destination[2:0]] == 1)begin
+                                                                        pointer[destination[2:0]] = pointer[destination[2:0]] + 1; //increases destination pointer
+                                                                        tableau[pointer[destination[2:0]]][destination[2:0]] = s_card; //puts s_card at next tableau column spot
+                                                                        cells[source[1:0]] = 6'bx; //sets free cell back to 6'bx
+                                                                        fcv[source[1:0]] = 1'b1;
+                                                                end else begin
+									                                $display("**ILLEGAL MOVE**");
+							                                	end
+                                                        end
+                                                        1'b1:begin
+								                            case(destination[2])
+                                                        		1'b0:begin //freecell to freecell
+                                                        		        if(fcv[destination[1:0]] == 1'b1)begin
+                                                                		        cells[destination[1:0]] = s_card;
+                                                                	        	fcv[source[1:0]] = 1'b1; 
+											                                    fcv[destination[1:0]] = 1'b0;
+                                                                		end  else begin
+											                                $display("**ILLEGAL MOVE**");
+									                                	end
+                                                        		end
+                                                        		1'b1:begin //freecell to homecell
+                                	                                	j = 0;
+                        	                                        	for(i=4; i <8; i=i+1)begin
+                                        	                        	        if(s_card[5:4] == cells[i][5:4])begin
+                                        	                        	                if(s_card[3:0] == cells[i][3:0] + 1)begin
+                                        	                        	                        cells[i] = s_card;
+                                        	                        	                        cells[source[1:0]] = 6'bx; //sets free cell back to 6'bx
+                                        	                        	                        fcv[source[1:0]] = 1'b1;
+                                        	                        	                end
+                                        	                        	        end else begin
+                                        	                        	                j = j + 1;
+                                        	                        	        end
+                                        	                        	end
+                                        	                        	if((j != 0) && (s_card[3:0] == 0))begin
+                                        	                        	        for(i=4; i <8; i=i+1)begin
+                                                	                	                if(fcv[i] == 1)begin
+                                        	                        	                        cells[i] = s_card;
+                                                        	        	                        cells[source[1:0]] = 6'bx; //sets free cell back to 6'bx
+                                                      	 	        	                        fcv[source[1:0]] = 1'b1;
+													                                            fcv[i] = 1'b0;
+                                                                                        		i = 10;
+                                                         	        	               end
+                                                         	        	       end
+                                                         	       		end
+										                                if( j == 4 && i == 8)begin
+										                                	$display("**ILLEGAL MOVE**");
+										                                end
+									                            end
+                                                        	endcase
+							                            end
+                                                endcase
+                                        end
+                                        1'b1:begin
+                                                $display("**ILLEGAL MOVE**");
+                                        end
+                                endcase
+                        end
+                endcase
+                for(i=0; i<8; i=i+1)begin
+                        if(pointer[i] == 9'b111_111_111)begin
+                                tbv[i] = 1'b1;
+                        end else begin
+                                tbv[i] = 1'b0;
+                        end
+                end
+        end
+
+
+        $display("Cells: %b ... %b ... %b ... %b ... %b ... %b ... %b ... %b ", cells[0], cells[1], cells[2], cells[3],  cells[4], cells[5], cells[6], cells[7]);
+        $display("TEABLEAU:");
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[0][0], tableau[0][1],tableau[0][2],tableau[0][3],tableau[0][4],tableau[0][5],tableau[0][6],tableau[0][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[1][0], tableau[1][1],tableau[1][2],tableau[1][3],tableau[1][4],tableau[1][5],tableau[1][6],tableau[1][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[2][0], tableau[2][1],tableau[2][2],tableau[2][3],tableau[2][4],tableau[2][5],tableau[2][6],tableau[2][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[3][0], tableau[3][1],tableau[3][2],tableau[3][3],tableau[3][4],tableau[3][5],tableau[3][6],tableau[3][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[4][0], tableau[4][1],tableau[4][2],tableau[4][3],tableau[4][4],tableau[4][5],tableau[4][6],tableau[4][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[5][0], tableau[5][1],tableau[5][2],tableau[5][3],tableau[5][4],tableau[5][5],tableau[5][6],tableau[5][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[6][0], tableau[6][1],tableau[6][2],tableau[6][3],tableau[6][4],tableau[6][5],tableau[6][6],tableau[6][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[7][0], tableau[7][1],tableau[7][2],tableau[7][3],tableau[7][4],tableau[7][5],tableau[7][6],tableau[7][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[8][0], tableau[8][1],tableau[8][2],tableau[8][3],tableau[8][4],tableau[8][5],tableau[8][6],tableau[8][7]);
+        $display(" %b .... %b .... %b .... %b .... %b .... %b .... %b .... %b ", tableau[9][0], tableau[9][1],tableau[9][2],tableau[9][3],tableau[9][4],tableau[9][5],tableau[9][6],tableau[9][7]);
+
+        if((cells[4][3:0] == 12) && (cells[5][3:0] == 12) && (cells[6][3:0] == 12) && (cells[7][3:0] == 12))begin
+                w_win = 1'b1;
+                $display("Game finished. WINNNER WINNER CHICKEN DINNER!");
+        end else begin
+                $display("Game still in progress...");
+        end
+        $display(" ");
+end
+
+assign win = w_win;
+
+endmodule
